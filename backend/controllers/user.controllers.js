@@ -4,19 +4,19 @@ import User from '../models/user.model.js'
 
 // signup
 export const signup = async (req, res) => {
-    const { name, username, email, password, confirmPassword } = req.body
 
-    if (!name || !password || !confirmPassword || !email || !username) return res.status(400).json({ success: false, message: "All Fields are required!" })
+    const { username, email, password, confirmPassword } = req.body
+
+    if (!email || !username || !password || !confirmPassword ) return res.status(400).json({ success: false, message: "All Fields are required!" })
 
     if (password !== confirmPassword) return res.status(400).json({ success: false, message: "password and confirm password should be same!" })
 
-    let checkUser = await User.findOne({ $or: [{ name }, { email }] })
-    if (checkUser?.name == name) return res.status(400).json({ success: false, message: "user name Already Exists! use a different name" })
+    let checkUser = await User.findOne({ email })
     if (checkUser?.email == email) return res.status(400).json({ success: false, message: "user email Already Exists! use a different email" })
 
     const hashedPass = bcryptjs.hashSync(password, 10)
 
-    const newUser = new User({ name, username, email, password: hashedPass })
+    const newUser = new User({ username, email, password: hashedPass })
     await newUser.save()
 
     res.status(200).json({
@@ -28,10 +28,10 @@ export const signup = async (req, res) => {
 
 // login
 export const login = async (req, res) => {
-    const { name, password } = req.body
+    const { email, password } = req.body
 
     // find user
-    let user = await User.findOne({ name })
+    let user = await User.findOne({ email }).populate("cart")
     if (!user) return res.status(400).json({ success: false, message: "User does not Exist" })
 
     const validPass = bcryptjs.compareSync(password, user.password)
@@ -39,10 +39,7 @@ export const login = async (req, res) => {
 
     if (!user.isActive) return res.status(401).json({ success: false, message: "your access has been revoked by admin" })
 
-
-    const token = jwt.sign({ id: user._id, name: user.name }, process.env.JWT_SECRET)
-
-
+    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET)
 
     res.status(200).json({
         success: true,

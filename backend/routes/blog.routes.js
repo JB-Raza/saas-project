@@ -4,7 +4,7 @@ import upload from '../cloudinary/cloudinary.js'
 import { verifyAdminUser } from '../middlewares.js'
 
 // controllers
-import { createBlog, getAllBlogs, getBlog } from '../controllers/blog.controller.js'
+import { createBlog, getAllBlogs, getBlog } from '../controllers/blog.controllers.js'
 
 router.post(
   "/create",

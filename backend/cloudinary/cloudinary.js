@@ -15,10 +15,10 @@ const storage = new CloudinaryStorage({
     cloudinary,
     params: {
         folder: "adminPanelSingleSolution",
-        allowed_formats: ["jpg", "png", "jpeg"]
     }
 })
 
 
 const upload = multer({storage})
+export { cloudinary }
 export default upload

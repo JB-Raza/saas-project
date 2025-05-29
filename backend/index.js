@@ -4,9 +4,12 @@ import dotenv from 'dotenv';
 import cors from 'cors'
 
 // routes
-import userRoutes from './routes/userAuth.routes.js'
+import userRoutes from './routes/user.routes.js'
 import adminRoutes from './routes/adminUser.routes.js'
 import blogRoutes from './routes/blog.routes.js'
+import productRoutes from './routes/product.routes.js'
+import reviewRoutes from './routes/review.routes.js'
+
 
 dotenv.config();
 
@@ -25,14 +28,10 @@ app.use(express.urlencoded({ extended: true }))
 app.use("/api/user/auth", userRoutes)
 app.use("/api/admin/auth", adminRoutes)
 app.use("/api/blogs", blogRoutes)
+app.use("/api/products", productRoutes)
+app.use("/api/:productId/reviews", reviewRoutes)
 
 
-
-// final error handler
-// app.use((err, req, res) => {
-//     console.error("UPLOAD ERROR:", err);
-//     res.status(500).json({ success: false, message: err.message });
-// });
 
 
 let PORT = process.env.PORT || 3000

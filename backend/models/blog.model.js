@@ -80,6 +80,6 @@ const blogSchema = new mongoose.Schema({
     },
 })
 
-const Blog = new mongoose.model("blogs", blogSchema)
+const Blog = new mongoose.model("blog", blogSchema)
 
 export default Blog
