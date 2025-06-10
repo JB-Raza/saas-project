@@ -20,10 +20,10 @@ const adminSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    isActive: {
-        type: Boolean,
-        default: true
-    }
+    // isActive: {
+    //     type: Boolean,
+    //     default: true
+    // }
 })
 
 const Admin = mongoose.model("admin", adminSchema)

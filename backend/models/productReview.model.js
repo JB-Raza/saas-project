@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import User from './user.model.js'
 import Product from './product.model.js'
 
+
 const reviewSchema = new mongoose.Schema({
     comment: {
         type: String,
@@ -15,12 +16,12 @@ const reviewSchema = new mongoose.Schema({
     },
     author: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: User,
+        ref: "user",
         required: true,
     },
     product: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
+        ref: "product",
         required: true,
     },
     createdAt: {

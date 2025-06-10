@@ -31,7 +31,7 @@ export const login = async (req, res) => {
     const { email, password } = req.body
 
     // find user
-    let user = await User.findOne({ email }).populate("cart")
+    let user = await User.findOne({ email }).populate("wishlist")
     if (!user) return res.status(400).json({ success: false, message: "User does not Exist" })
 
     const validPass = bcryptjs.compareSync(password, user.password)

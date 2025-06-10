@@ -1,5 +1,6 @@
 import Review from '../models/productReview.model.js'
 import Product from '../models/product.model.js'
+import Order from '../models/order.model.js'
 
 export const createReview = async (req, res) => {
     try {
@@ -10,6 +11,17 @@ export const createReview = async (req, res) => {
         const product = await Product.findById(productId)
 
         if (!product) return res.status(404).json({ success: false, message: "No Product Found" })
+
+        const userOrders = await Order.find({ $and: [{ user: user._id }, { orderStatus: "delivered" }] })
+
+
+
+        const validOrderedProduct = userOrders.map((order) => order.items.filter(item => item._id == productId)).flat()[0]
+
+        if (!validOrderedProduct) {
+            return res.status(401).json({ success: false, message: "you must order and recieve this product to add a review" })
+        }
+
 
         const userReview = await Review.findOne({
             _id: { $in: product.reviews },
@@ -26,6 +38,8 @@ export const createReview = async (req, res) => {
         const { comment, rating } = req.body
 
         if (!comment || !rating) return res.status(400).json({ success: false, message: "both comment and rating are required" })
+
+
 
         const newReview = new Review({ comment, rating, author: user._id, product: product._id })
         await newReview.save()
@@ -87,7 +101,6 @@ export const updateReview = async (req, res) => {
 
 export const deleteReview = async (req, res) => {
     try {
-        console.log("del")
         const user = req?.user;
         if (!user) {
             return res.status(401).json({ success: false, message: "You must be logged in to delete a review" });

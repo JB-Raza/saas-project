@@ -5,7 +5,6 @@ import User from './models/user.model.js'
 export const verifyAdminUser = async (req, res, next) => {
     try {
         let authHeader = req.headers?.authorization
-
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return res.status(401).json({ success: false, message: "No token found" })
         }
@@ -23,6 +22,8 @@ export const verifyAdminUser = async (req, res, next) => {
 
     } catch (error) {
         console.log("error in token access = ", error?.message)
+        return res.status(403).json({ success: false, message: "Token verification failed", error: error.message });
+
     }
 
 
@@ -32,7 +33,9 @@ export const verifyUser = async (req, res, next) => {
 
     try {
         let authHeader = req?.headers.authorization
+
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            console.log("no token found")
             return res.status(401).json({ success: false, message: "No token found" })
         }
 
@@ -41,8 +44,10 @@ export const verifyUser = async (req, res, next) => {
 
         const user = await User.findById(verifyToken.id).select("-password")
 
-        if (!user) return res.status(404).json({ success: false, message: "User not found" })
-
+        if (!user) {
+            console.log("no user found")
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
         req.user = user
         next()
 

@@ -4,7 +4,6 @@ import Blog from '../models/blog.model.js'
 export const createBlog = async (req, res, next) => {
     try {
         const user = req?.user
-        console.log(user)
         const bannerImage = req.files.bannerImage[0].path
 
         const otherImages = req?.files.otherImages

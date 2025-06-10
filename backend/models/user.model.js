@@ -18,10 +18,11 @@ const userSchema = new Schema({
         type: String,
         required: true
     },
-    cart: {
+    wishlist: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Cart"
-    },
+        ref: "product",
+        default: [],
+    }],
     isActive: {
         type: Boolean,
         default: true

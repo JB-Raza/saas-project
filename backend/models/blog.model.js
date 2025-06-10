@@ -1,44 +1,4 @@
 import mongoose from 'mongoose'
-import Admin from './admin.model.js'
-import User from './user.model.js'
-
-// const blogSchema = new mongoose.Schema({
-//     blogTitle: {
-//         type: String,
-//         required: true,
-//     },
-//     datePosted: {
-//         type: Date,
-//         default: Date.now()
-//     },
-//     author: {
-//         type: mongoose.Schema.Types.ObjectId,
-//         ref: Admin
-//     },
-//     comments: {
-//         type: [{
-//             user: { type: mongoose.Schema.Types.ObjectId, ref: User },
-//             comment: { type: String, required: true },
-//             createdAt: { type: Date, default: Date.now() }
-//         }],
-//     },
-//     readTime: {
-//         type: Number,
-//     },
-//     bannerImage: {
-//         type: String,
-//         required: true,
-//     },
-//     otherImages: {
-//         type: [String],
-//     },
-//     description: {
-//         type: String,
-//         default: Date.now()
-//     },
-
-
-// })
 
 const blogSchema = new mongoose.Schema({
     title: {
@@ -55,11 +15,11 @@ const blogSchema = new mongoose.Schema({
     },
     author: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: Admin
+        ref: "admin"
     },
     comments: {
         type: [{
-            user: { type: mongoose.Schema.Types.ObjectId, ref: User },
+            user: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
             comment: { type: String, required: true },
             createdAt: { type: Date, default: Date.now() }
         }],
