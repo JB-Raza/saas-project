@@ -4,3 +4,5 @@
 
 client/.env
 backend/.env
+client/node-modules
+backend/node-modules
