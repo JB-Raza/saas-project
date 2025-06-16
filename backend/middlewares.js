@@ -1,6 +1,13 @@
 import jwt from 'jsonwebtoken'
 import Admin from './models/admin.model.js'
 import User from './models/user.model.js'
+import Stripe from 'stripe'
+import checkoutNodeJssdk from '@paypal/checkout-server-sdk';
+import dotenv from 'dotenv'
+
+dotenv.config()
+
+
 
 export const verifyAdminUser = async (req, res, next) => {
     try {
@@ -55,3 +62,20 @@ export const verifyUser = async (req, res, next) => {
         console.log("error in token access = ", error?.message)
     }
 }
+
+
+// paypal
+
+function environment() {
+    let clientId = process.env.PAYPAL_CLIENT_ID;
+    let clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+        throw new Error("PayPal credentials are missing from environment variables");
+    }
+    return new checkoutNodeJssdk.core.SandboxEnvironment(clientId, clientSecret);
+}
+
+const paypalClient = new checkoutNodeJssdk.core.PayPalHttpClient(environment());
+export { paypalClient, checkoutNodeJssdk }
+

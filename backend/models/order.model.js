@@ -1,6 +1,12 @@
 import mongoose from 'mongoose'
 
 
+const voucherSchema = new mongoose.Schema({
+    code: { type: String },
+    discountType: { type: String, enum: ["flat", "percentage"], default: "percentage" },
+    discountValue: { type: Number },
+}, { _id: false })
+
 const orderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true },
 
@@ -23,10 +29,14 @@ const orderSchema = new mongoose.Schema({
     totalPrice: { type: Number, required: true },
 
     paymentMethod: { type: String, enum: ["cashOnDelivery", "paypal", "stripe"], required: true },
+    paymentStatus: {
+        type: String,
+        default: "unpaid"
+    },
     orderStatus: {
         type: String,
-        enum: ["processing", "on-the-way", "delivered", "cancelled"],
-        default: "processing"
+        enum: ["pending", "processing", "on-the-way", "delivered", "cancelled"],
+        default: "pending"
     },
 
     deliveryInfo: {
@@ -37,11 +47,7 @@ const orderSchema = new mongoose.Schema({
     },
     trackingNumber: { type: String, required: true },
 
-    voucher: {
-        code: { type: String },
-        discountType: { type: String, enum: ["flat", "percentage"], default: "percentage" },
-        discountValue: { type: Number },
-    },
+    voucher: voucherSchema,
 
     comment: { type: String },
 }, { timestamps: true });

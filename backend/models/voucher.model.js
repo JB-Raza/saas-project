@@ -6,7 +6,7 @@ const voucherSchema = new mongoose.Schema({
     discountValue: { type: Number, required: true },
     expiryDate: { type: Date },
     usedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "user" }],
-    usageLimit: { type: Number, default: 1 }
+    usageLimit: { type: Number, default: 10 }
 
 }, { timestamps: true })
 

@@ -15,6 +15,8 @@ import reviewRoutes from './routes/review.routes.js'
 import wishlistRoutes from './routes/wishlist.routes.js'
 import orderRoutes from './routes/order.routes.js'
 
+// controller for place order
+import { placeStripeOrder } from './controllers/order.controllers.js'
 
 dotenv.config();
 
@@ -22,28 +24,12 @@ const app = express();
 
 app.use(cors())
 
-// Middlewares
+// Middlewares // this should be used before app.use(express.json()) because we are trying to get express.raw data here
+app.post("/api/orders/webhook", express.raw({ type: "application/json" }), placeStripeOrder)
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
 
-
-
-// routes
-// sample voucher codes
-// app.use("", async (req, res) => {
-//     const voucher = {
-//         code: "jkl",
-//         discountType: "flat",
-//         discountValue: 10,
-//         expiryDate: new Date("2025-12-31"),
-//         usageLimit: 10,
-//     }
-
-//     const newVoucher = new Voucher(voucher)
-//     await newVoucher.save()
-//     console.log('voucher saved')
-
-// })
 
 app.use("/api/user/auth", userRoutes)
 app.use("/api/admin/auth", adminRoutes)
