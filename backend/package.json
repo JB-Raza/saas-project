@@ -26,6 +26,6 @@
     "multer-storage-cloudinary": "^4.0.0",
     "nodemon": "^3.1.10",
     "paypal-rest-sdk": "^1.8.1",
-    "stripe": "^18.2.1"
+    "stripe": "^18.3.0"
   }
 }
