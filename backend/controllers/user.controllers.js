@@ -2,88 +2,156 @@ import bcryptjs from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import User from '../models/user.model.js'
 
-// signup
 export const signup = async (req, res) => {
+    try {
+        const { username, email, password, confirmPassword } = req.body
 
-    const { username, email, password, confirmPassword } = req.body
+        if (!email || !username || !password || !confirmPassword) {
+            return res.status(400).json({ success: false, message: "All fields are required" })
+        }
 
-    if (!email || !username || !password || !confirmPassword ) return res.status(400).json({ success: false, message: "All Fields are required!" })
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ success: false, message: "Invalid email address format" })
+        }
 
-    if (password !== confirmPassword) return res.status(400).json({ success: false, message: "password and confirm password should be same!" })
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: "Password must be at least 6 characters" })
+        }
 
-    let checkUser = await User.findOne({ email })
-    if (checkUser?.email == email) return res.status(400).json({ success: false, message: "user email Already Exists! use a different email" })
+        if (password !== confirmPassword) {
+            return res.status(400).json({ success: false, message: "Password and confirm password must match" })
+        }
 
-    const hashedPass = bcryptjs.hashSync(password, 10)
+        const existingEmail = await User.findOne({ email: email.toLowerCase() })
+        if (existingEmail) {
+            return res.status(400).json({ success: false, message: "Email is already registered" })
+        }
 
-    const newUser = new User({ username, email, password: hashedPass })
-    await newUser.save()
+        const existingUsername = await User.findOne({ username: username.trim() })
+        if (existingUsername) {
+            return res.status(400).json({ success: false, message: "Username is already taken" })
+        }
 
-    res.status(200).json({
-        success: true,
-        message: "New User Created",
-        user: newUser
-    })
+        const hashedPass = bcryptjs.hashSync(password, 10)
+        const newUser = new User({
+            username: username.trim(),
+            email: email.toLowerCase().trim(),
+            password: hashedPass
+        })
+        await newUser.save()
+
+        const profile = newUser.toObject()
+        delete profile.password
+
+        return res.status(201).json({
+            success: true,
+            message: "User account created successfully",
+            user: profile
+        })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
 }
 
-// login
 export const login = async (req, res) => {
-    const { email, password } = req.body
+    try {
+        const { email, password } = req.body
 
-    // find user
-    let user = await User.findOne({ email }).populate("wishlist")
-    if (!user) return res.status(400).json({ success: false, message: "User does not Exist" })
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: "Email and password are required" })
+        }
 
-    const validPass = bcryptjs.compareSync(password, user.password)
-    if (!validPass) return res.status(400).json({ success: false, message: "Password is Incorrect" })
+        const user = await User.findOne({ email: email.toLowerCase().trim() }).populate("wishlist")
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Invalid email or password" })
+        }
 
-    if (!user.isActive) return res.status(401).json({ success: false, message: "your access has been revoked by admin" })
+        const validPass = bcryptjs.compareSync(password, user.password)
+        if (!validPass) {
+            return res.status(400).json({ success: false, message: "Invalid email or password" })
+        }
 
-    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET)
+        if (!user.isActive) {
+            return res.status(403).json({ success: false, message: "Your access has been revoked by admin" })
+        }
 
-    res.status(200).json({
-        success: true,
-        message: "Logged In!",
-        token,
-        profile: { ...user._doc, password: null }
-    })
+        const token = jwt.sign(
+            { id: user._id, email: user.email },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        )
 
+        const profile = user.toObject()
+        delete profile.password
+
+        return res.status(200).json({
+            success: true,
+            message: "Logged in successfully",
+            token,
+            profile
+        })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
 }
 
-export const getUser = (req, res, next) => {
+export const getUser = (req, res) => {
     try {
         const user = req?.user
-        if (!user) res.status(401).json({ success: false, message: "could not get user" })
+        if (!user) {
+            return res.status(401).json({ success: false, message: "User not authenticated" })
+        }
 
-        res.status(200).json({ success: true, user, message: "got the user" })
+        const profile = user.toObject ? user.toObject() : { ...user }
+        delete profile.password
 
+        return res.status(200).json({ success: true, user: profile })
     } catch (error) {
-        next(error)
+        return res.status(500).json({ success: false, message: error.message })
     }
-
 }
 
-// change password
 export const changeUserCredentials = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body
+        const { userId } = req.params
 
-    let { oldPassword, newPassword } = req.body
-    let { userId } = req?.params
+        if (req.user._id.toString() !== userId) {
+            return res.status(403).json({ success: false, message: "Unauthorized to modify another user's credentials" })
+        }
 
-    let user = await User.findOne({ _id: userId })
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: "Both old and new passwords are required" })
+        }
 
-    if (!user) return res.status(401).json({ success: false, message: "user doesn't exist" })
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: "New password must be at least 6 characters" })
+        }
 
+        const user = await User.findById(userId)
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
 
-    if (!oldPassword) return res.status(401).json({ success: false, message: "you must add your old password" })
+        const validatePass = bcryptjs.compareSync(oldPassword, user.password)
+        if (!validatePass) {
+            return res.status(401).json({ success: false, message: "Incorrect current password" })
+        }
 
-    const validatePass = await bcryptjs.compareSync(oldPassword, user.password)
-    if (!validatePass) return res.status(401).json({ success: false, message: "incorrect old password" })
+        const hashNewPass = bcryptjs.hashSync(newPassword, 10)
+        user.password = hashNewPass
+        await user.save()
 
-    if (!newPassword) return res.status(401).json({ success: false, message: "add a new password" })
+        const profile = user.toObject()
+        delete profile.password
 
-    const hashNewPass = await bcryptjs.hashSync(newPassword, 10)
-    await User.findByIdAndUpdate(userId, { password: hashNewPass }, { new: true })
-
-    return res.status(200).json({ success: true, message: "Password changed successfully", profile: { ...user._doc, password: null } })
-
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully",
+            profile
+        })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
 }
