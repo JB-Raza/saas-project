@@ -2,35 +2,39 @@ import express from 'express'
 import { signup, login, updatePassword, updateUserCredentials, getUser } from '../controllers/adminUser.controllers.js'
 import { verifyAdminUser } from '../middlewares.js'
 import User from '../models/user.model.js'
-
 import upload from '../cloudinary/cloudinary.js'
-let router = express.Router()
 
+const router = express.Router()
 
 router.post("/register", signup)
 router.post("/login", login)
 router.put("/update/:userId", upload.single("profileImage"), verifyAdminUser, updateUserCredentials)
 router.put("/updatePassword/:userId", verifyAdminUser, updatePassword)
-
-
 router.get("/getUser", verifyAdminUser, getUser)
-// get all users
-router.get("/getAllUsers", async (req, res) => {
-    let allUsers = await User.find({}).select("-password")
-    if (allUsers.length == 0) return res.status(400).json({ success: false, message: "No User found" })
 
-    return res.status(200).json({ success: true, allUsers })
-
+router.get("/getAllUsers", verifyAdminUser, async (req, res) => {
+    try {
+        const allUsers = await User.find({}).select("-password")
+        return res.status(200).json({ success: true, allUsers })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
 })
 
-// change active status of user
 router.put("/checkStatus/:userId", verifyAdminUser, async (req, res) => {
-    const { userId } = req.params
-    let { newActiveState } = req.body
+    try {
+        const { userId } = req.params
+        const { newActiveState } = req.body
 
-    let user = await User.findByIdAndUpdate(userId, { isActive: newActiveState }, { new: true }).select("-password")
+        const user = await User.findByIdAndUpdate(userId, { isActive: newActiveState }, { new: true }).select("-password")
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
 
-    res.json({ success: true, user, message: `active state changed of ${user.name}` })
+        return res.status(200).json({ success: true, user, message: `Active state changed for ${user.username}` })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
 })
 
 export default router
