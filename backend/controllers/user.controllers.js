@@ -155,3 +155,93 @@ export const changeUserCredentials = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message })
     }
 }
+
+export const getAddresses = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id)
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
+        return res.status(200).json({ success: true, addresses: user.addresses || [] })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}
+
+export const addAddress = async (req, res) => {
+    try {
+        const { street, apartment, city, state, zipCode, country, phone, isDefault } = req.body
+
+        if (!street || !city || !zipCode) {
+            return res.status(400).json({ success: false, message: "Street, city, and zip code are required" })
+        }
+
+        const user = await User.findById(req.user._id)
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
+
+        if (isDefault) {
+            user.addresses.forEach(addr => { addr.isDefault = false })
+        }
+
+        user.addresses.push({
+            street,
+            apartment: apartment || "",
+            city,
+            state: state || "",
+            zipCode,
+            country: country || "Pakistan",
+            phone: phone || user.phoneNumber || "",
+            isDefault: Boolean(isDefault) || user.addresses.length === 0
+        })
+
+        await user.save()
+        return res.status(201).json({ success: true, message: "Address added successfully", addresses: user.addresses })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}
+
+export const updateAddress = async (req, res) => {
+    try {
+        const { addressId } = req.params
+        const user = await User.findById(req.user._id)
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
+
+        const address = user.addresses.id(addressId)
+        if (!address) {
+            return res.status(404).json({ success: false, message: "Address not found" })
+        }
+
+        if (req.body.isDefault) {
+            user.addresses.forEach(addr => { addr.isDefault = false })
+        }
+
+        Object.assign(address, req.body)
+        await user.save()
+
+        return res.status(200).json({ success: true, message: "Address updated successfully", addresses: user.addresses })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}
+
+export const deleteAddress = async (req, res) => {
+    try {
+        const { addressId } = req.params
+        const user = await User.findById(req.user._id)
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" })
+        }
+
+        user.addresses.pull({ _id: addressId })
+        await user.save()
+
+        return res.status(200).json({ success: true, message: "Address deleted successfully", addresses: user.addresses })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}
