@@ -1,10 +1,18 @@
 import mongoose from 'mongoose'
 
+const variantSchema = new mongoose.Schema({
+    color: { type: String, required: true },
+    sizes: { type: [String], default: [] },
+    quantity: { type: Number, required: true, min: 0 },
+    images: { type: [String], required: true },
+}, { _id: true })
+
 const productSchema = new mongoose.Schema({
-    title: { type: String, required: true, },
-    tagline: { type: String },
-    price: { type: Number, required: true },
-    discount: { type: Number, default: 0 },
+    title: { type: String, required: true, trim: true },
+    sku: { type: String, sparse: true, trim: true },
+    tagline: { type: String, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    discount: { type: Number, default: 0, min: 0, max: 100 },
     category: {
         type: String,
         enum: ["household", "laptops", "electronics", "Brochures & Catalogues", "Business Cards", "Design Online", "Flyers Design", "Folded Leaflets", "t-shirt printing", "Gift item printing"],
@@ -14,31 +22,35 @@ const productSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
-    description: { type: String },
-    variants: {
-        type: [{
-            color: { type: String, required: true },
-            sizes: { type: [String] },
-            quantity: { type: Number, required: true },
-            images: { type: [String], required: true },
-        }]
-    },
-    features: { type: [String] },
-
-    tags: { type: [String] },
+    description: { type: String, trim: true },
+    variants: [variantSchema],
+    totalStock: { type: Number, default: 0 },
+    inStock: { type: Boolean, default: true },
+    averageRating: { type: Number, default: 0, min: 0, max: 5 },
+    totalReviews: { type: Number, default: 0 },
+    features: { type: [String], default: [] },
+    tags: { type: [String], default: [] },
     author: { type: mongoose.Schema.Types.ObjectId, ref: "admin" },
-
-    otherDetails: { // this will be the data coming from text rich docuemnt (tiny mce)
-        type: String
-    },
+    otherDetails: { type: String },
     reviews: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "review",
         default: [],
     }],
-
+}, {
+    timestamps: true
 })
 
-const Product = new mongoose.model("product", productSchema)
+productSchema.pre("save", function (next) {
+    if (this.variants && this.variants.length > 0) {
+        this.totalStock = this.variants.reduce((sum, v) => sum + (v.quantity || 0), 0)
+        this.inStock = this.totalStock > 0
+    }
+    if (!this.sku && this._id) {
+        this.sku = `PRD-${this._id.toString().slice(-6).toUpperCase()}`
+    }
+    next()
+})
 
+const Product = mongoose.model("product", productSchema)
 export default Product
