@@ -1,57 +1,115 @@
 import Product from '../models/product.model.js'
 import { cloudinary } from '../cloudinary/cloudinary.js'
 
-// get product
 export const getProduct = async (req, res, next) => {
     try {
         const { productId } = req.params
-        if (!productId) return res.status(404).json({ success: false, message: "no product id matched" })
+        if (!productId) {
+            return res.status(400).json({ success: false, message: "Product ID is required" })
+        }
 
-        const product = await Product.findById(productId)
-        if (!product) return res.status(404).json({ success: false, message: "no product found" })
+        const product = await Product.findById(productId).populate({
+            path: "reviews",
+            populate: { path: "user", select: "username email" }
+        })
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" })
+        }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
-            message: "Product Found",
+            message: "Product found",
             product
         })
     } catch (error) {
-        next(error)
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
-// get all products
 export const getAllProducts = async (req, res, next) => {
-
     try {
-        // to fetch featured products from this route
-        const { query } = req?.query
-        let allProducts
-        if (query && query == "featured") allProducts = await Product.find({ isFeatured: true }).limit(4)
-        else allProducts = await Product.find({})
+        const { query, category, minPrice, maxPrice, inStock, rating, sort, page = 1, limit = 20 } = req.query
 
-        if (allProducts.length == 0) return res.status(404).json({ success: false, message: "no products found in database" })
-        res.status(200).json({ success: true, message: "products fetched successfully", allProducts })
+        const filter = {}
+
+        if (query === "featured") {
+            filter.isFeatured = true
+        }
+
+        if (category) {
+            filter.category = category
+        }
+
+        if (minPrice !== undefined || maxPrice !== undefined) {
+            filter.price = {}
+            if (minPrice !== undefined && minPrice !== "") {
+                filter.price.$gte = Number(minPrice)
+            }
+            if (maxPrice !== undefined && maxPrice !== "") {
+                filter.price.$lte = Number(maxPrice)
+            }
+        }
+
+        if (inStock !== undefined) {
+            filter.inStock = inStock === "true" || inStock === true
+        }
+
+        if (rating !== undefined && rating !== "") {
+            filter.averageRating = { $gte: Number(rating) }
+        }
+
+        let sortOption = { createdAt: -1 }
+        if (sort === "price_asc") {
+            sortOption = { price: 1 }
+        } else if (sort === "price_desc") {
+            sortOption = { price: -1 }
+        } else if (sort === "rating") {
+            sortOption = { averageRating: -1 }
+        } else if (sort === "newest") {
+            sortOption = { createdAt: -1 }
+        }
+
+        const pageNum = Math.max(1, parseInt(page, 10))
+        const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10)))
+        const skip = (pageNum - 1) * limitNum
+
+        const totalProducts = await Product.countDocuments(filter)
+        const products = await Product.find(filter)
+            .sort(sortOption)
+            .skip(skip)
+            .limit(limitNum)
+
+        return res.status(200).json({
+            success: true,
+            totalProducts,
+            totalPages: Math.ceil(totalProducts / limitNum),
+            currentPage: pageNum,
+            count: products.length,
+            allProducts: products
+        })
     } catch (error) {
-        next(error)
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
-// create product
 export const createProduct = async (req, res, next) => {
     try {
         const user = req?.user
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Authentication required to create product" })
+        }
 
-        if (!user) return res.status(400).json({ success: false, message: "you must login to create a new product" })
-        const files = req?.files
+        const files = req?.files || []
         let { variants, ...restOfProductData } = req.body
 
-        variants = JSON.parse(variants)
-        const fileUrls = files?.map(file => file.path)
+        if (typeof variants === 'string') {
+            variants = JSON.parse(variants)
+        }
 
+        const fileUrls = files.map(file => file.path)
         let fileIndex = 0
 
-        const updatedvariants = variants.map((variant) => {
+        const updatedVariants = (variants || []).map((variant) => {
             const numberOfImages = variant.fileCount || 0
             const images = fileUrls.slice(fileIndex, fileIndex + numberOfImages)
             fileIndex += numberOfImages
@@ -61,109 +119,126 @@ export const createProduct = async (req, res, next) => {
             }
         })
 
-        const newProduct = new Product({ author: user._id, ...restOfProductData, variants: updatedvariants })
+        const newProduct = new Product({
+            author: user._id,
+            ...restOfProductData,
+            variants: updatedVariants
+        })
         await newProduct.save()
-        res.status(200).json({ success: true, message: "Product created successfully", newProduct })
 
+        return res.status(201).json({
+            success: true,
+            message: "Product created successfully",
+            newProduct
+        })
     } catch (error) {
-        console.log("err = ", error)
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
-// update product
 export const updateProduct = async (req, res, next) => {
     try {
-
         const user = req?.user
-        if (!user) return res.status(400).json({ success: false, message: "you are not authorized to update this product" })
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Unauthorized to update this product" })
+        }
 
-        const files = req.files
+        const files = req.files || []
         const fileUrls = files.map((file) => file.path)
-
         const { productId } = req.params
-        if (!productId) return res.status(404).json({ success: false, message: "no product id found" })
 
         const product = await Product.findById(productId)
-        if (!product) return res.status(404).json({ success: false, message: "no product found of this id" })
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" })
+        }
 
-        let { variants, ...restOfProductData } = req?.body
+        let { variants, ...restOfProductData } = req.body
+        if (typeof variants === 'string') {
+            variants = JSON.parse(variants)
+        }
 
-        variants = JSON.parse(variants)
+        let updatedVariants = product.variants
+        if (variants && Array.isArray(variants)) {
+            const variImages = variants.map((vari) =>
+                (vari.images || []).filter((img) => typeof img === 'string')
+            )
 
-        // previous images
+            let fileIndex = 0
+            updatedVariants = variants.map((variant, index) => {
+                const numberOfImages = variant.fileCount || 0
+                const images = fileUrls.slice(fileIndex, fileIndex + numberOfImages)
+                fileIndex += numberOfImages
+                return {
+                    ...variant,
+                    images: [...(variImages[index] || []), ...images]
+                }
+            })
+        }
 
-        let variImages = (variants || []).map((vari) =>
-            (vari.images || []).filter((img) => typeof img == 'string')
+        const updatedProduct = await Product.findByIdAndUpdate(
+            productId,
+            { variants: updatedVariants, ...restOfProductData },
+            { new: true, runValidators: true }
         )
 
-
-
-        // if added new files, they are embeded as empty objects
-
-        let fileIndex = 0
-        const updatedvariants = variants.map((variant, index) => {
-            const numberOfImages = variant.fileCount || 0
-            const images = fileUrls.slice(fileIndex, fileIndex + numberOfImages)
-            fileIndex += numberOfImages
-
-            return {
-                ...variant,
-                images: [...variImages[index], ...images]
-            }
+        return res.status(200).json({
+            success: true,
+            message: "Product updated successfully",
+            updatedProduct
         })
-
-
-
-
-        const updatedProduct = await Product.findByIdAndUpdate(productId, { variants: updatedvariants, ...restOfProductData }, { new: true, runValidators: true })
-        res.status(200).json({ success: true, message: "product updated successfully", updatedProduct })
-
     } catch (error) {
-        console.error("error aa gia sir = ", error?.message)
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
-// search query
 export const searchQueryData = async (req, res) => {
     try {
-        const searchQuery = req?.query.searchQuery
+        const searchQuery = req.query.searchQuery
+        if (!searchQuery || !searchQuery.trim()) {
+            return res.status(200).json({ success: true, searchQueryData: [] })
+        }
+
+        const term = searchQuery.trim()
         const searchQueryData = await Product.find({
             $or: [
-                { title: { $regex: searchQuery, $options: "i" } },
-                { tags: { $in: [searchQuery] } },
-                { category: { $regex: searchQuery, $options: "i" } },
+                { title: { $regex: term, $options: "i" } },
+                { tags: { $in: [term] } },
+                { category: { $regex: term, $options: "i" } },
+                { sku: { $regex: term, $options: "i" } }
             ]
         })
 
-        res.status(200).json({ success: true, searchQueryData })
+        return res.status(200).json({ success: true, count: searchQueryData.length, searchQueryData })
     } catch (error) {
-        console.log("query error : ", error.message)
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
-// delete product
 export const deleteProduct = async (req, res, next) => {
-    const { productId } = req.params
-    if (!productId) return res.status(404).json({ success: false, message: "no product ID found" })
+    try {
+        const { productId } = req.params
+        const product = await Product.findById(productId)
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" })
+        }
 
-    const product = await Product.findById(productId)
-    if (!product) return res.status(404).json({ success: false, message: "no product found to be Delete" })
-
-        // deleting images from cloudinary storage too
-        (product.variants || []).map((variant) => {
-            (variant.images || []).map((imgUrl) => {
-                const url = imgUrl.split("/")
-                const fileName = url.pop().split(".")[0]
-                const folderName = url.pop()
-                const filePath = `${folderName}/${fileName}`
-                cloudinary.uploader.destroy(filePath, (err, result) => {
-                    if (err) console.log("failed to delete image : ", err)
-                    else console.log("image deleted successfully : ", result.result)
-                })
+        (product.variants || []).forEach((variant) => {
+            (variant.images || []).forEach((imgUrl) => {
+                if (typeof imgUrl === 'string') {
+                    const url = imgUrl.split("/")
+                    const fileName = url.pop()?.split(".")[0]
+                    const folderName = url.pop()
+                    if (folderName && fileName) {
+                        const filePath = `${folderName}/${fileName}`
+                        cloudinary.uploader.destroy(filePath).catch(() => {})
+                    }
+                }
             })
         })
 
-    await Product.findByIdAndDelete(productId)
-    res.status(200).json({ success: true, message: "Product deleted successfully" })
+        await Product.findByIdAndDelete(productId)
+        return res.status(200).json({ success: true, message: "Product deleted successfully" })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
 }
-
