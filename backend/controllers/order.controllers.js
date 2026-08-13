@@ -471,3 +471,26 @@ export const cancelOrder = async (req, res) => {
         console.log(error.message)
     }
 }
+
+export const trackOrderByNumber = async (req, res) => {
+    try {
+        const { trackingNumber } = req.params
+        if (!trackingNumber) {
+            return res.status(400).json({ success: false, message: "Tracking number is required" })
+        }
+
+        const order = await Order.findOne({ trackingNumber: trackingNumber.trim() })
+            .select("trackingNumber orderStatus paymentMethod paymentStatus createdAt items deliveryInfo totalPrice")
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: "No order found matching tracking number" })
+        }
+
+        return res.status(200).json({
+            success: true,
+            order
+        })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}

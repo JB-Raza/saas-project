@@ -1,9 +1,18 @@
 import express from 'express'
-const router = express.Router()
-
-import { createOrder, cancelOrder, getAllOrders, getAllUserOrders, updateOrderStatus, placePaypalOrder } from '../controllers/order.controllers.js'
+import {
+    createOrder,
+    cancelOrder,
+    getAllOrders,
+    getAllUserOrders,
+    updateOrderStatus,
+    placePaypalOrder,
+    trackOrderByNumber
+} from '../controllers/order.controllers.js'
 import { verifyUser, verifyAdminUser } from '../middlewares.js'
 
+const router = express.Router()
+
+router.get("/track/:trackingNumber", trackOrderByNumber)
 router.get("/", verifyAdminUser, getAllOrders)
 router.post("/new", verifyUser, createOrder)
 router.get("/getUserOrders", verifyUser, getAllUserOrders)
