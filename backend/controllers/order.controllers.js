@@ -494,3 +494,51 @@ export const trackOrderByNumber = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message })
     }
 }
+
+export const customerCancelOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params
+        const userId = req.user._id
+
+        const order = await Order.findById(orderId)
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found" })
+        }
+
+        if (order.user.toString() !== userId.toString()) {
+            return res.status(403).json({ success: false, message: "Unauthorized to cancel this order" })
+        }
+
+        if (order.orderStatus === "cancelled") {
+            return res.status(400).json({ success: false, message: "Order is already cancelled" })
+        }
+
+        if (order.orderStatus !== "pending" && order.orderStatus !== "processing") {
+            return res.status(400).json({ success: false, message: "Cannot cancel order once it has been dispatched" })
+        }
+
+        order.orderStatus = "cancelled"
+        await order.save()
+
+        if (order.items && order.items.length > 0) {
+            await Promise.all(
+                order.items.map(async (item) => {
+                    if (item._id && item.variant?.color) {
+                        await Product.updateOne(
+                            { _id: item._id, "variants.color": item.variant.color },
+                            { $inc: { "variants.$.quantity": item.quantity } }
+                        )
+                    }
+                })
+            )
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Order cancelled successfully and inventory restored",
+            order
+        })
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}
