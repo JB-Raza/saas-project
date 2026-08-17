@@ -2,151 +2,170 @@ import Review from '../models/productReview.model.js'
 import Product from '../models/product.model.js'
 import Order from '../models/order.model.js'
 
+const updateProductRatingMetrics = async (productId) => {
+    const reviews = await Review.find({ product: productId })
+    const totalReviews = reviews.length
+    const averageRating = totalReviews > 0
+        ? Number((reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1))
+        : 0
+    await Product.findByIdAndUpdate(productId, { averageRating, totalReviews })
+}
+
 export const createReview = async (req, res) => {
     try {
         const user = req?.user
-        if (!user) return res.status(400).json({ success: false, message: "You must be logged in to add a review" })
+        if (!user) {
+            return res.status(401).json({ success: false, message: "You must be logged in to add a review" })
+        }
 
         const { productId } = req.params
         const product = await Product.findById(productId)
-
-        if (!product) return res.status(404).json({ success: false, message: "No Product Found" })
-
-        const userOrders = await Order.find({ $and: [{ user: user._id }, { orderStatus: "delivered" }] })
-
-
-
-        const validOrderedProduct = userOrders.map((order) => order.items.filter(item => item._id == productId)).flat()[0]
-
-        if (!validOrderedProduct) {
-            return res.status(401).json({ success: false, message: "you must order and recieve this product to add a review" })
+        if (!product) {
+            return res.status(404).json({ success: false, message: "No product found" })
         }
 
+        const userOrders = await Order.find({ user: user._id, orderStatus: "delivered" })
+        const validOrderedProduct = userOrders
+            .map((order) => order.items.filter(item => item._id?.toString() === productId))
+            .flat()[0]
 
-        const userReview = await Review.findOne({
-            _id: { $in: product.reviews },
-            author: user._id
-        });
+        if (!validOrderedProduct) {
+            return res.status(403).json({ success: false, message: "You must purchase and receive this product before reviewing" })
+        }
 
-        if (userReview) {
+        const existingReview = await Review.findOne({ product: productId, author: user._id })
+        if (existingReview) {
             return res.status(400).json({
                 success: false,
-                message: "You already reviewed this product. You can update your existing review."
-            });
+                message: "You have already reviewed this product. You can update your existing review."
+            })
         }
 
         const { comment, rating } = req.body
+        if (!comment || rating === undefined) {
+            return res.status(400).json({ success: false, message: "Both comment and rating are required" })
+        }
 
-        if (!comment || !rating) return res.status(400).json({ success: false, message: "both comment and rating are required" })
+        const numRating = Number(rating)
+        if (numRating < 1 || numRating > 5) {
+            return res.status(400).json({ success: false, message: "Rating must be between 1 and 5" })
+        }
 
-
-
-        const newReview = new Review({ comment, rating, author: user._id, product: product._id })
+        const newReview = new Review({
+            comment: comment.trim(),
+            rating: numRating,
+            author: user._id,
+            product: product._id
+        })
         await newReview.save()
-        await newReview.populate({ path: 'author', select: "username email" })
+
         product.reviews.push(newReview._id)
         await product.save()
 
-        res.status(201).json({
+        await updateProductRatingMetrics(productId)
+        await newReview.populate({ path: 'author', select: "username email" })
+
+        return res.status(201).json({
             success: true,
-            message: "review created successfully",
-            newReview,
+            message: "Review created successfully",
+            newReview
         })
     } catch (error) {
-        console.log(error.message)
-        res.status(500).json({
-            success: false,
-            message: error?.message || "An error occurred while creating the review.",
-        });
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
 export const updateReview = async (req, res) => {
     try {
-        const user = req?.user;
+        const user = req?.user
         if (!user) {
-            return res.status(401).json({ success: false, message: "You must be logged in to update a review" });
+            return res.status(401).json({ success: false, message: "You must be logged in to update a review" })
         }
 
-        const { productId, reviewId } = req.params;
-        const { comment, rating } = req.body;
+        const { productId, reviewId } = req.params
+        const { comment, rating } = req.body
 
-        if (!comment || !rating) {
-            return res.status(400).json({ success: false, message: "Both comment and rating are required" });
+        if (!comment || rating === undefined) {
+            return res.status(400).json({ success: false, message: "Both comment and rating are required" })
         }
 
-        const productExists = await Product.exists({ _id: productId });
-        if (!productExists) {
-            return res.status(404).json({ success: false, message: "Product not found" });
-        }
-
-        const review = await Review.findById(reviewId);
+        const review = await Review.findById(reviewId)
         if (!review) {
-            return res.status(404).json({ success: false, message: "Review not found" });
+            return res.status(404).json({ success: false, message: "Review not found" })
         }
 
         if (review.author.toString() !== user._id.toString()) {
-            return res.status(403).json({ success: false, message: "You are not allowed to update this review" });
+            return res.status(403).json({ success: false, message: "You are not allowed to update this review" })
         }
 
-        review.comment = comment;
-        review.rating = rating;
-        await review.save();
+        const numRating = Number(rating)
+        if (numRating < 1 || numRating > 5) {
+            return res.status(400).json({ success: false, message: "Rating must be between 1 and 5" })
+        }
 
-        res.status(200).json({ success: true, message: "Review updated successfully", updatedReview: review });
+        review.comment = comment.trim()
+        review.rating = numRating
+        await review.save()
+
+        await updateProductRatingMetrics(productId)
+
+        return res.status(200).json({
+            success: true,
+            message: "Review updated successfully",
+            updatedReview: review
+        })
     } catch (error) {
-        res.status(500).json({ success: false, message: error?.message || "Something went wrong" });
+        return res.status(500).json({ success: false, message: error.message })
     }
-};
+}
 
 export const deleteReview = async (req, res) => {
     try {
-        const user = req?.user;
+        const user = req?.user
         if (!user) {
-            return res.status(401).json({ success: false, message: "You must be logged in to delete a review" });
+            return res.status(401).json({ success: false, message: "You must be logged in to delete a review" })
         }
 
-        const { productId, reviewId } = req.params;
-
+        const { productId, reviewId } = req.params
         const product = await Product.findById(productId)
         if (!product) {
-            return res.status(404).json({ success: false, message: "Product not found" });
+            return res.status(404).json({ success: false, message: "Product not found" })
         }
 
-        const review = await Review.findById(reviewId);
+        const review = await Review.findById(reviewId)
         if (!review) {
-            return res.status(404).json({ success: false, message: "Review not found" });
+            return res.status(404).json({ success: false, message: "Review not found" })
         }
 
         if (review.author.toString() !== user._id.toString()) {
-            return res.status(403).json({ success: false, message: "You are not allowed to delete this review" });
+            return res.status(403).json({ success: false, message: "You are not allowed to delete this review" })
         }
 
         await review.deleteOne()
         product.reviews.pull(reviewId)
         await product.save()
 
+        await updateProductRatingMetrics(productId)
 
-        res.status(200).json({ success: true, message: "review deleted successfully" })
-
+        return res.status(200).json({ success: true, message: "Review deleted successfully" })
     } catch (error) {
-        res.status(500).json({ success: false, message: error?.message || "Something went wrong" });
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
 
 export const getAllProductReviews = async (req, res) => {
     try {
         const { productId } = req.params
-        const product = await Product.findById(productId).populate({ path: 'reviews', populate: { path: "author", select: "username email" } })
+        const reviews = await Review.find({ product: productId })
+            .populate({ path: "author", select: "username email" })
+            .sort({ createdAt: -1 })
 
-
-        if (!product) return res.status(404).json({ success: false, message: "no product found" })
-
-        const allReviews = product.reviews
-
-        res.status(200).json({ success: true, allReviews })
+        return res.status(200).json({
+            success: true,
+            count: reviews.length,
+            reviews
+        })
     } catch (error) {
-        console.log(error)
-        res.status(500).json({ success: false, message: error?.message || "Something went wrong" });
+        return res.status(500).json({ success: false, message: error.message })
     }
 }
