@@ -4,13 +4,20 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "saas",
+    "ecommerce",
+    "express",
+    "mongodb",
+    "stripe",
+    "paypal"
+  ],
+  "author": "Jahanzaib Raza",
   "license": "ISC",
-  "description": "",
+  "description": "Enterprise SaaS E-Commerce REST API backend",
   "dependencies": {
     "@paypal/checkout-server-sdk": "^1.0.3",
     "@paypal/paypal-server-sdk": "^1.1.0",
